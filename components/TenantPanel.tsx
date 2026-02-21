@@ -450,18 +450,18 @@ const TenantPanel: React.FC<TenantPanelProps> = ({
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
                 </div>
                 <div className="text-left">
-                  <p className="font-bold">Tauhid Ahmed</p>
-                  <p className="text-xs opacity-70">UCO Bank 6110</p>
+                  <p className="font-bold">Property Owner</p>
+                  <p className="text-xs opacity-70">Bank Account</p>
                 </div>
               </div>
               <div className="bg-white p-2 rounded-lg">
                 <img
-                  src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=ahmedtauhid584@okicici&pn=Tauhid%20Ahmed&cu=INR"
+                  src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=owner@upi&pn=Property%20Owner&cu=INR"
                   alt="Scan to Pay"
                   className="w-full h-auto"
                 />
               </div>
-              <p className="mt-4 text-sm opacity-80 break-all">UPI ID: ahmedtauhid584@okicici</p>
+              <p className="mt-4 text-sm opacity-80 break-all">UPI ID: owner@upi</p>
             </div>
 
             <div className="w-full">

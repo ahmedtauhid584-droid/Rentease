@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { User, Property, Payment, Complaint, PropertyType, PaymentStatus, ComplaintStatus } from '../types';
+import { User, Property, Payment, Complaint, PropertyType, PaymentStatus, ComplaintStatus, RentRequest } from '../types';
 import { Icons } from '../constants';
 import Button from './Button';
 import Layout from './Layout';
@@ -22,6 +22,14 @@ interface OwnerPanelProps {
   onUpdateComplaintStatus: (complaintId: string, status: ComplaintStatus) => void;
   onGenerateMonthlyRent: (propertyId: string) => void;
   onRemoveTenant: (propertyId: string) => void;
+  agreements: { id: string; name: string; data: string; uploadedAt: string; propertyId?: string }[];
+  onUploadAgreement: (file: File, propertyId?: string) => void;
+  onDeleteAgreement: (agreementId: string) => void;
+  rentRequests: RentRequest[];
+  onApproveRentRequest: (requestId: string) => void;
+  onRejectRentRequest: (requestId: string) => void;
+  onAddRoom: (propertyId: string, roomData: { number: string; floor?: string; rentAmount: number }) => void;
+  onDeleteRoom: (propertyId: string, roomId: string) => void;
 }
 
 const OwnerPanel: React.FC<OwnerPanelProps> = ({
@@ -38,7 +46,15 @@ const OwnerPanel: React.FC<OwnerPanelProps> = ({
   onMarkPaymentPaid,
   onUpdateComplaintStatus,
   onGenerateMonthlyRent,
-  onRemoveTenant
+  onRemoveTenant,
+  agreements,
+  onUploadAgreement,
+  onDeleteAgreement,
+  rentRequests,
+  onApproveRentRequest,
+  onRejectRentRequest,
+  onAddRoom,
+  onDeleteRoom
 }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isPropertyModalOpen, setIsPropertyModalOpen] = useState(false);
@@ -57,6 +73,14 @@ const OwnerPanel: React.FC<OwnerPanelProps> = ({
   // Form State
   const [newProperty, setNewProperty] = useState({ name: '', address: '', city: '', rentAmount: '', type: PropertyType.FLAT, dueDay: 5 });
   const [newTenant, setNewTenant] = useState({ name: '', phone: '' });
+
+  // File input ref for agreement upload
+  const agreementInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Room Modal State
+  const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
+  const [roomPropertyId, setRoomPropertyId] = useState<string | null>(null);
+  const [newRoom, setNewRoom] = useState({ number: '', floor: '', rentAmount: '' });
 
   const t = TRANSLATIONS[lang];
 
@@ -293,6 +317,43 @@ const OwnerPanel: React.FC<OwnerPanelProps> = ({
                 )}
               </div>
             </div>
+
+            {/* Rent Requests */}
+            {rentRequests.filter(r => r.status === 'PENDING').length > 0 && (
+              <div className="bg-white rounded-2xl border-2 border-[#FFCC80] shadow-sm p-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-[#FFF8E1] rounded-lg text-[#F57F17]">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" /></svg>
+                  </div>
+                  <h3 className="font-bold text-lg">Pending Rent Requests</h3>
+                  <span className="ml-auto bg-[#F57F17] text-white text-xs font-bold px-2 py-1 rounded-full">{rentRequests.filter(r => r.status === 'PENDING').length}</span>
+                </div>
+                <div className="space-y-3">
+                  {rentRequests.filter(r => r.status === 'PENDING').map(req => {
+                    const prop = properties.find(p => p.id === req.propertyId);
+                    const room = req.roomId && prop?.rooms ? prop.rooms.find(r => r.id === req.roomId) : null;
+                    return (
+                      <div key={req.id} className="p-4 rounded-xl bg-[#FFFBF0] border border-[#FFCC80]">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-bold text-[#2D3436]">{req.tenantName}</p>
+                            <p className="text-xs text-[#8E9491]">{req.tenantPhone} • {req.date}</p>
+                            <p className="text-sm text-[#555] mt-1">
+                              Wants: <span className="font-medium">{prop?.name || 'Unknown'}{room ? ` — Room ${room.number}` : ''}</span>
+                            </p>
+                            {req.message && <p className="text-xs text-[#8E9491] mt-1 italic">"{req.message}"</p>}
+                          </div>
+                          <div className="flex gap-2 shrink-0">
+                            <button onClick={() => onApproveRentRequest(req.id)} className="px-3 py-1.5 bg-[#2E7D32] text-white text-xs font-bold rounded-lg hover:bg-[#1B5E20] transition-colors">Approve</button>
+                            <button onClick={() => onRejectRentRequest(req.id)} className="px-3 py-1.5 bg-white border border-[#EAEAEA] text-[#BC4749] text-xs font-bold rounded-lg hover:bg-red-50 transition-colors">Reject</button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -327,16 +388,39 @@ const OwnerPanel: React.FC<OwnerPanelProps> = ({
                       </div>
                       <p className="font-bold text-[#4B5EAA] text-lg">₹{p.rentAmount}<span className="text-xs font-normal text-[#8E9491]">/mo</span></p>
                     </div>
-                    <div className="mt-auto pt-4 border-t border-[#F1F3FA] flex gap-2">
-                      <Button variant="outline" fullWidth className="!py-2 !text-sm" onClick={() => openPropertyDetails(p)}>{t.details}</Button>
-                      {p.isOccupied ? (
-                        <div className="flex gap-1 w-full">
-                          <Button variant="ghost" fullWidth className="!py-2 !text-xs bg-[#F1F3FA]" onClick={() => onRemoveTenant(p.id)}>Remove</Button>
-                          <Button variant="primary" fullWidth className="!py-2 !text-xs" onClick={() => onGenerateMonthlyRent(p.id)}>Gen. Rent</Button>
+
+                    {/* Rooms List */}
+                    {p.rooms && p.rooms.length > 0 && (
+                      <div className="mt-3 mb-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-bold text-[#8E9491] uppercase tracking-wider">Rooms ({p.rooms.length})</p>
                         </div>
-                      ) : (
-                        <Button onClick={() => handleAddTenantClick(p.id)} variant="primary" fullWidth className="!py-2 !text-sm">{t.addTenant}</Button>
-                      )}
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {p.rooms.map(r => (
+                            <div key={r.id} className={`px-2.5 py-1.5 rounded-lg text-xs flex items-center justify-between ${r.isOccupied ? 'bg-[#E8F5E9] text-[#2E7D32]' : 'bg-[#FFF3E0] text-[#E65100]'}`}>
+                              <span className="font-bold">#{r.number}</span>
+                              <span>₹{r.rentAmount}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="mt-auto pt-4 border-t border-[#F1F3FA] flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <Button variant="outline" fullWidth className="!py-2 !text-sm" onClick={() => openPropertyDetails(p)}>{t.details}</Button>
+                        <Button variant="outline" fullWidth className="!py-2 !text-sm" onClick={() => { setRoomPropertyId(p.id); setIsRoomModalOpen(true); }}>+ Room</Button>
+                      </div>
+                      {!p.rooms || p.rooms.length === 0 ? (
+                        p.isOccupied ? (
+                          <div className="flex gap-1">
+                            <Button variant="ghost" fullWidth className="!py-2 !text-xs bg-[#F1F3FA]" onClick={() => onRemoveTenant(p.id)}>Remove</Button>
+                            <Button variant="primary" fullWidth className="!py-2 !text-xs" onClick={() => onGenerateMonthlyRent(p.id)}>Gen. Rent</Button>
+                          </div>
+                        ) : (
+                          <Button onClick={() => handleAddTenantClick(p.id)} variant="primary" fullWidth className="!py-2 !text-sm">{t.addTenant}</Button>
+                        )
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -428,14 +512,57 @@ const OwnerPanel: React.FC<OwnerPanelProps> = ({
                 <h4 className="font-bold text-[#2D3436]">{t.manageTenants}</h4>
                 <p className="text-xs text-[#8E9491] mt-1">View current tenants</p>
               </div>
-              <div onClick={() => alert('Documents feature coming soon! In a real app, you would upload/download rent agreements and ID proofs here.')} className="bg-white p-4 rounded-xl border border-[#EAEAEA] hover:bg-[#F9F8F6] cursor-pointer transition-all hover:-translate-y-1 hover:shadow-md">
+              <div onClick={() => agreementInputRef.current?.click()} className="bg-white p-4 rounded-xl border border-[#EAEAEA] hover:bg-[#F9F8F6] cursor-pointer transition-all hover:-translate-y-1 hover:shadow-md">
+                <input
+                  ref={agreementInputRef}
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      if (file.size > 5 * 1024 * 1024) {
+                        alert('File too large! Max 5MB.');
+                        return;
+                      }
+                      onUploadAgreement(file);
+                    }
+                    e.target.value = '';
+                  }}
+                />
                 <div className="p-2 bg-purple-50 text-purple-600 rounded-lg w-fit mb-3">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
                 </div>
                 <h4 className="font-bold text-[#2D3436]">{t.documents}</h4>
-                <p className="text-xs text-[#8E9491] mt-1">Agreements & ID Proofs</p>
+                <p className="text-xs text-[#8E9491] mt-1">Tap to upload agreement</p>
               </div>
             </div>
+
+            {/* Uploaded Agreements */}
+            {agreements.length > 0 && (
+              <div className="bg-white rounded-2xl border border-[#EAEAEA] overflow-hidden">
+                <div className="p-4 border-b border-[#EAEAEA] bg-[#F9F8F6] font-bold text-sm text-[#8E9491] uppercase tracking-wider">Uploaded Agreements</div>
+                <div className="divide-y divide-[#EAEAEA]">
+                  {agreements.map(a => (
+                    <div key={a.id} className="p-4 flex justify-between items-center hover:bg-[#FDFCF9]">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="p-2 bg-red-50 text-red-500 rounded-lg shrink-0">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" /></svg>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{a.name}</p>
+                          <p className="text-xs text-[#8E9491]">{a.uploadedAt}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <a href={a.data} download={a.name} className="text-xs font-bold text-[#4B5EAA] hover:underline">View</a>
+                        <button onClick={() => onDeleteAgreement(a.id)} className="text-xs font-bold text-[#BC4749] hover:underline">Delete</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Settings List */}
             <div className="bg-white rounded-2xl border border-[#EAEAEA] overflow-hidden">
@@ -665,6 +792,32 @@ const OwnerPanel: React.FC<OwnerPanelProps> = ({
           )}
         </Modal>
       </div>
+
+      {/* Add Room Modal */}
+      <Modal isOpen={isRoomModalOpen} onClose={() => { setIsRoomModalOpen(false); setNewRoom({ number: '', floor: '', rentAmount: '' }); }} title="Add Room">
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          if (!roomPropertyId || !newRoom.number || !newRoom.rentAmount) return;
+          onAddRoom(roomPropertyId, { number: newRoom.number, floor: newRoom.floor || undefined, rentAmount: Number(newRoom.rentAmount) });
+          setIsRoomModalOpen(false);
+          setNewRoom({ number: '', floor: '', rentAmount: '' });
+          alert('Room added!');
+        }} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-[#2D3436] mb-1">Room Number *</label>
+            <input type="text" required value={newRoom.number} onChange={(e) => setNewRoom({ ...newRoom, number: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-[#EAEAEA] focus:border-[#4B5EAA] focus:ring-2 focus:ring-[#4B5EAA]/20 outline-none" placeholder="e.g., 101, G-1, A-201" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[#2D3436] mb-1">Floor</label>
+            <input type="text" value={newRoom.floor} onChange={(e) => setNewRoom({ ...newRoom, floor: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-[#EAEAEA] focus:border-[#4B5EAA] focus:ring-2 focus:ring-[#4B5EAA]/20 outline-none" placeholder="e.g., Ground, 1st, 2nd" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[#2D3436] mb-1">Monthly Rent (₹) *</label>
+            <input type="number" required value={newRoom.rentAmount} onChange={(e) => setNewRoom({ ...newRoom, rentAmount: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-[#EAEAEA] focus:border-[#4B5EAA] focus:ring-2 focus:ring-[#4B5EAA]/20 outline-none" placeholder="e.g., 5000" />
+          </div>
+          <Button type="submit" variant="primary" fullWidth>Add Room</Button>
+        </form>
+      </Modal>
     </Layout>
   );
 };

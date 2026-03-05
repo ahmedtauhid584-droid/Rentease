@@ -35,17 +35,39 @@ export interface User {
   aadhaarNumber?: string;
 }
 
+export interface Room {
+  id: string;
+  number: string;        // "101", "102", "G-1"
+  floor?: string;        // "Ground", "1st", "2nd"
+  rentAmount: number;
+  isOccupied: boolean;
+  tenantId?: string;
+}
+
 export interface Property {
   id: string;
-  name: string; // e.g., "Flat No. 402"
+  name: string;          // Building name: "Green Towers"
   address: string;
   city: string;
   type: PropertyType;
-  rentAmount: number;
-  dueDay: number; // e.g., 5 for 5th of every month
-  isOccupied: boolean;
-  tenantId?: string;
+  rentAmount: number;     // Default rent (used if no rooms)
+  dueDay: number;
+  isOccupied: boolean;    // Legacy: true if ANY room occupied or single-unit occupied
+  tenantId?: string;      // Legacy: for single-unit properties
   images?: string[];
+  rooms?: Room[];         // Multiple rooms/quarters
+}
+
+export interface RentRequest {
+  id: string;
+  propertyId: string;
+  roomId?: string;        // If requesting a specific room
+  tenantId: string;
+  tenantName: string;
+  tenantPhone: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  date: string;
+  message?: string;       // Tenant's message to owner
 }
 
 export interface Payment {
@@ -53,11 +75,12 @@ export interface Payment {
   propertyId: string;
   tenantId: string;
   amount: number;
-  month: string; // "October 2023"
+  month: string;
   status: PaymentStatus;
   datePaid?: string;
   type: 'RENT' | 'ELECTRICITY' | 'WATER' | 'MAINTENANCE';
   reminderSent?: boolean;
+  roomId?: string;        // Which room the payment is for
 }
 
 export interface Complaint {
@@ -69,4 +92,5 @@ export interface Complaint {
   status: ComplaintStatus;
   date: string;
   images?: string[];
+  roomId?: string;
 }

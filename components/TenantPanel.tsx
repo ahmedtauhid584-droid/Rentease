@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { User, Complaint, ComplaintStatus, Payment, PaymentStatus, Property } from '../types';
+import { User, Complaint, ComplaintStatus, Payment, PaymentStatus, Property, RentRequest } from '../types';
 import { Icons, COLORS } from '../constants';
 import Button from './Button';
 import Layout from './Layout';
@@ -16,7 +16,9 @@ interface TenantPanelProps {
   onLogout: () => void;
   onPayRent: (paymentId: string) => void;
   onRaiseComplaint: (complaint: Omit<Complaint, 'id' | 'status' | 'date' | 'tenantId'>) => void;
-  onRentProperty: (propertyId: string) => void;
+  agreements: { id: string; name: string; data: string; uploadedAt: string; propertyId?: string }[];
+  rentRequests: RentRequest[];
+  onSendRentRequest: (propertyId: string, roomId?: string, message?: string) => void;
 }
 
 const TenantPanel: React.FC<TenantPanelProps> = ({
@@ -28,7 +30,10 @@ const TenantPanel: React.FC<TenantPanelProps> = ({
   onLogout,
   onPayRent,
   onRaiseComplaint,
-  onRentProperty
+  onRentProperty,
+  agreements,
+  rentRequests,
+  onSendRentRequest
 }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
 
@@ -246,35 +251,89 @@ const TenantPanel: React.FC<TenantPanelProps> = ({
         {activeTab === 'explore' && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold">{t.availableProperties}</h2>
-            {availableProperties.length > 0 ? (
+            {availableProperties.length > 0 || properties.some(p => p.rooms?.some(r => !r.isOccupied)) ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {availableProperties.map(p => (
-                  <div key={p.id} className="bg-white rounded-2xl border border-[#EAEAEA] overflow-hidden shadow-sm hover:shadow-lg transition-all group">
-                    <div className="h-48 bg-[#F9F8F6] relative overflow-hidden">
-                      <img
-                        src={`https://picsum.photos/seed/${p.id}/500/300`}
-                        alt={p.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                      <div className="absolute top-3 left-3 bg-black/50 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-bold">
-                        {p.type}
+                {properties.filter(p => !p.isOccupied || (p.rooms && p.rooms.some(r => !r.isOccupied))).map((p) => {
+                  const hasRooms = p.rooms && p.rooms.length > 0;
+                  const availableRooms = hasRooms ? p.rooms!.filter(r => !r.isOccupied) : [];
+                  const pendingReq = !hasRooms ? rentRequests.find(r => r.propertyId === p.id && r.tenantId === user.id && r.status === 'PENDING') : null;
+
+                  return (
+                    <div key={p.id} className="bg-white rounded-2xl border border-[#EAEAEA] overflow-hidden shadow-sm hover:shadow-lg transition-all group flex flex-col h-full">
+                      <div className="h-48 bg-[#F9F8F6] relative overflow-hidden shrink-0">
+                        <img
+                          src={`https://picsum.photos/seed/${p.id}/500/300`}
+                          alt={p.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        <div className="absolute top-3 left-3 bg-black/50 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-bold">
+                          {p.type}
+                        </div>
+                      </div>
+                      <div className="p-5 flex flex-col flex-1">
+                        <h3 className="text-lg font-bold">{p.name}</h3>
+                        <p className="text-[#8E9491] text-sm mb-4">{p.address}, {p.city}</p>
+
+                        {/* Whole Property */}
+                        {!hasRooms && (
+                          <div className="mt-auto flex justify-between items-center border-t border-[#F1F3FA] pt-4">
+                            <p className="text-[#4B5EAA] font-bold text-xl">₹{p.rentAmount}<span className="text-xs text-[#8E9491] font-normal">/mo</span></p>
+                            <button
+                              onClick={() => {
+                                if (!pendingReq) {
+                                  const msg = window.prompt("Optional message to owner:");
+                                  if (msg !== null) onSendRentRequest(p.id, undefined, msg);
+                                }
+                              }}
+                              disabled={!!pendingReq}
+                              className={`px-4 py-2 text-sm font-bold rounded-lg transition-transform ${pendingReq
+                                  ? 'bg-[#E3F2FD] text-[#1565C0] cursor-not-allowed'
+                                  : 'bg-[#4B5EAA] text-white hover:bg-[#3D4D8C] active:scale-95'
+                                }`}
+                            >
+                              {pendingReq ? 'Pending...' : 'Request to Rent'}
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Rooms List */}
+                        {hasRooms && (
+                          <div className="mt-auto border-t border-[#F1F3FA] pt-3">
+                            <p className="text-xs font-bold text-[#8E9491] uppercase tracking-wider mb-2">Available Rooms ({availableRooms.length})</p>
+                            <div className="space-y-2">
+                              {availableRooms.map(r => {
+                                const pendingRoomReq = rentRequests.find(req => req.propertyId === p.id && req.roomId === r.id && req.tenantId === user.id && req.status === 'PENDING');
+                                return (
+                                  <div key={r.id} className="flex justify-between items-center bg-[#F9F8F6] p-2 rounded-lg border border-[#EAEAEA]">
+                                    <div>
+                                      <span className="font-bold text-sm text-[#2D3436]">Room {r.number}</span>
+                                      <p className="text-[#4B5EAA] font-bold text-xs">₹{r.rentAmount}/mo</p>
+                                    </div>
+                                    <button
+                                      onClick={() => {
+                                        if (!pendingRoomReq) {
+                                          const msg = window.prompt(`Message to owner for Room ${r.number}:`);
+                                          if (msg !== null) onSendRentRequest(p.id, r.id, msg);
+                                        }
+                                      }}
+                                      disabled={!!pendingRoomReq}
+                                      className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${pendingRoomReq
+                                          ? 'bg-[#E3F2FD] text-[#1565C0] cursor-not-allowed border border-[#BBDEFB]'
+                                          : 'bg-white border border-[#4B5EAA] text-[#4B5EAA] hover:bg-[#F3F5FA]'
+                                        }`}
+                                    >
+                                      {pendingRoomReq ? 'Pending...' : 'Request'}
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <div className="p-5">
-                      <h3 className="text-lg font-bold">{p.name}</h3>
-                      <p className="text-[#8E9491] text-sm">{p.address}, {p.city}</p>
-                      <div className="mt-4 flex justify-between items-center">
-                        <p className="text-[#4B5EAA] font-bold text-xl">₹{p.rentAmount}<span className="text-xs text-[#8E9491] font-normal">/mo</span></p>
-                        <button
-                          onClick={() => onRentProperty(p.id)}
-                          className="px-4 py-2 bg-[#4B5EAA] text-white text-sm font-bold rounded-lg hover:bg-[#3D4D8C] active:scale-95 transition-transform"
-                        >
-                          {t.rentProperty}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-12 bg-white rounded-2xl border border-[#EAEAEA]">
@@ -372,13 +431,20 @@ const TenantPanel: React.FC<TenantPanelProps> = ({
             <div className="bg-white rounded-2xl border border-[#EAEAEA] overflow-hidden">
               <div className="p-4 border-b border-[#EAEAEA] bg-[#F9F8F6] font-bold text-sm text-[#8E9491] uppercase tracking-wider">{t.documents}</div>
               <div className="divide-y divide-[#EAEAEA]">
-                <div onClick={() => alert('Document download coming soon! In a real app, you would download your rent agreement PDF here.')} className="p-4 flex justify-between items-center hover:bg-[#FDFCF9] cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-red-50 text-red-500 rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" /></svg></div>
-                    <span className="font-medium">{t.rentAgreement}.pdf</span>
+                {agreements.length > 0 ? agreements.map(a => (
+                  <div key={a.id} className="p-4 flex justify-between items-center hover:bg-[#FDFCF9] cursor-pointer">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="p-2 bg-red-50 text-red-500 rounded-lg shrink-0"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" /></svg></div>
+                      <div className="min-w-0">
+                        <span className="font-medium text-sm truncate block">{a.name}</span>
+                        <span className="text-xs text-[#8E9491]">{a.uploadedAt}</span>
+                      </div>
+                    </div>
+                    <a href={a.data} download={a.name} className="text-sm font-bold text-[#4B5EAA] hover:underline shrink-0">{t.download}</a>
                   </div>
-                  <span className="text-sm font-bold text-[#4B5EAA]">{t.download}</span>
-                </div>
+                )) : (
+                  <div className="p-6 text-center text-[#8E9491] text-sm">No agreements uploaded yet.</div>
+                )}
               </div>
             </div>
 

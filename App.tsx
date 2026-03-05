@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { UserRole, Property, Payment, Complaint, PaymentStatus, ComplaintStatus, Room, RentRequest } from './types';
+import { UserRole, Property, Payment, Complaint, PaymentStatus, ComplaintStatus, Room, RentRequest, AppNotification, LeaveNotice } from './types';
 import OwnerPanel from './components/OwnerPanel';
 import TenantPanel from './components/TenantPanel';
 import LandingPage from './components/LandingPage';
@@ -40,6 +40,14 @@ const AppContent: React.FC = () => {
     const stored = localStorage.getItem('rentRequests');
     return stored ? JSON.parse(stored) : [];
   });
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
+    const stored = localStorage.getItem('notifications');
+    return stored ? JSON.parse(stored) : [];
+  });
+  const [leaveNotices, setLeaveNotices] = useState<LeaveNotice[]>(() => {
+    const stored = localStorage.getItem('leaveNotices');
+    return stored ? JSON.parse(stored) : [];
+  });
 
   // Mark data as loaded + sync across tabs
   useEffect(() => {
@@ -77,6 +85,8 @@ const AppContent: React.FC = () => {
   useEffect(() => { if (dataLoaded.current) localStorage.setItem('tenants', JSON.stringify(tenants)); }, [tenants]);
   useEffect(() => { if (dataLoaded.current) localStorage.setItem('agreements', JSON.stringify(agreements)); }, [agreements]);
   useEffect(() => { if (dataLoaded.current) localStorage.setItem('rentRequests', JSON.stringify(rentRequests)); }, [rentRequests]);
+  useEffect(() => { if (dataLoaded.current) localStorage.setItem('notifications', JSON.stringify(notifications)); }, [notifications]);
+  useEffect(() => { if (dataLoaded.current) localStorage.setItem('leaveNotices', JSON.stringify(leaveNotices)); }, [leaveNotices]);
 
   // Set View based on Role
   useEffect(() => {
@@ -189,6 +199,7 @@ const AppContent: React.FC = () => {
   };
 
   const handlePayRent = async (paymentId: string) => {
+    const payment = payments.find(p => p.id === paymentId);
     const updatedPayments = payments.map(p => {
       if (p.id === paymentId) {
         return {
@@ -200,6 +211,35 @@ const AppContent: React.FC = () => {
       return p;
     });
     setPayments(updatedPayments);
+
+    // Create notification for owner
+    if (payment) {
+      const prop = properties.find(p => p.id === payment.propertyId);
+      const tenantName = currentUser?.name || 'Tenant';
+      const payType = payment.type === 'SECURITY_DEPOSIT' ? 'Security Deposit' : payment.type;
+      const notif: AppNotification = {
+        id: `notif-${Date.now()}`,
+        userId: 'OWNER',  // All owners see it
+        title: `💰 Payment Received`,
+        message: `${tenantName} paid ₹${payment.amount} (${payType}) for ${prop?.name || 'Property'}`,
+        date: new Date().toISOString().split('T')[0],
+        read: false,
+        type: 'PAYMENT'
+      };
+      setNotifications(prev => [...prev, notif]);
+
+      // Also notify tenant
+      const tenantNotif: AppNotification = {
+        id: `notif-${Date.now() + 1}`,
+        userId: payment.tenantId,
+        title: `✅ Payment Confirmed`,
+        message: `Your payment of ₹${payment.amount} (${payType}) for ${prop?.name || 'Property'} has been recorded.`,
+        date: new Date().toISOString().split('T')[0],
+        read: false,
+        type: 'PAYMENT'
+      };
+      setNotifications(prev => [...prev, tenantNotif]);
+    }
   };
 
   const handleRaiseComplaint = async (complaintData: Omit<Complaint, 'id' | 'status' | 'date' | 'tenantId'>) => {
@@ -400,6 +440,67 @@ const AppContent: React.FC = () => {
     alert('Rent request rejected.');
   };
 
+  // --- Leave Notice System ---
+  const handleSendLeaveNotice = (moveOutDate: string, reason?: string) => {
+    if (!currentUser) return;
+    const myProp = properties.find(p => p.tenantId === currentUser.id || (p.rooms && p.rooms.some(r => r.tenantId === currentUser.id)));
+    if (!myProp) { alert('No property found.'); return; }
+    const myRoom = myProp.rooms?.find(r => r.tenantId === currentUser.id);
+
+    const notice: LeaveNotice = {
+      id: `leave-${Date.now()}`,
+      tenantId: currentUser.id,
+      tenantName: currentUser.name,
+      propertyId: myProp.id,
+      roomId: myRoom?.id,
+      date: new Date().toISOString().split('T')[0],
+      moveOutDate,
+      reason,
+      status: 'PENDING'
+    };
+    setLeaveNotices(prev => [...prev, notice]);
+
+    // Notify owner
+    const notif: AppNotification = {
+      id: `notif-${Date.now()}`,
+      userId: 'OWNER',
+      title: '📋 Leave Notice Received',
+      message: `${currentUser.name} plans to vacate ${myProp.name}${myRoom ? ` Room ${myRoom.number}` : ''} by ${moveOutDate}.${reason ? ' Reason: ' + reason : ''}`,
+      date: new Date().toISOString().split('T')[0],
+      read: false,
+      type: 'LEAVE_NOTICE'
+    };
+    setNotifications(prev => [...prev, notif]);
+    alert('Leave notice sent to owner!');
+  };
+
+  const handleAcknowledgeLeaveNotice = (noticeId: string) => {
+    setLeaveNotices(prev => prev.map(n => n.id === noticeId ? { ...n, status: 'ACKNOWLEDGED' as const } : n));
+    const notice = leaveNotices.find(n => n.id === noticeId);
+    if (notice) {
+      const notif: AppNotification = {
+        id: `notif-${Date.now()}`,
+        userId: notice.tenantId,
+        title: '✅ Leave Notice Acknowledged',
+        message: `Your leave notice has been acknowledged by the owner. Planned move-out: ${notice.moveOutDate}`,
+        date: new Date().toISOString().split('T')[0],
+        read: false,
+        type: 'LEAVE_NOTICE'
+      };
+      setNotifications(prev => [...prev, notif]);
+    }
+    alert('Leave notice acknowledged.');
+  };
+
+  const handleMarkNotificationRead = (notifId: string) => {
+    setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, read: true } : n));
+  };
+
+  const handleClearNotifications = () => {
+    if (!currentUser) return;
+    setNotifications(prev => prev.filter(n => n.userId !== currentUser.id && n.userId !== (currentUser.role === UserRole.OWNER ? 'OWNER' : '')));
+  };
+
   if (!currentUser && view !== 'landing') {
     return <div className="flex items-center justify-center h-screen">Loading...</div>;
   }
@@ -438,6 +539,11 @@ const AppContent: React.FC = () => {
           onRejectRentRequest={handleRejectRentRequest}
           onAddRoom={handleAddRoom}
           onDeleteRoom={handleDeleteRoom}
+          notifications={notifications}
+          onMarkNotificationRead={handleMarkNotificationRead}
+          onClearNotifications={handleClearNotifications}
+          leaveNotices={leaveNotices}
+          onAcknowledgeLeaveNotice={handleAcknowledgeLeaveNotice}
         />
       )}
       {view === 'tenant' && currentUser && (
@@ -454,6 +560,10 @@ const AppContent: React.FC = () => {
           agreements={agreements}
           rentRequests={rentRequests}
           onSendRentRequest={handleSendRentRequest}
+          notifications={notifications}
+          onMarkNotificationRead={handleMarkNotificationRead}
+          leaveNotices={leaveNotices}
+          onSendLeaveNotice={handleSendLeaveNotice}
         />
       )}
     </div>

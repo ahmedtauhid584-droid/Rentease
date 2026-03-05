@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { User, Property, Payment, Complaint, PropertyType, PaymentStatus, ComplaintStatus, RentRequest } from '../types';
+import { User, Property, Payment, Complaint, PropertyType, PaymentStatus, ComplaintStatus, RentRequest, AppNotification, LeaveNotice } from '../types';
 import { Icons } from '../constants';
 import Button from './Button';
 import Layout from './Layout';
@@ -30,6 +30,11 @@ interface OwnerPanelProps {
   onRejectRentRequest: (requestId: string) => void;
   onAddRoom: (propertyId: string, roomData: { number: string; floor?: string; rentAmount: number }) => void;
   onDeleteRoom: (propertyId: string, roomId: string) => void;
+  notifications: AppNotification[];
+  onMarkNotificationRead: (notifId: string) => void;
+  onClearNotifications: () => void;
+  leaveNotices: LeaveNotice[];
+  onAcknowledgeLeaveNotice: (noticeId: string) => void;
 }
 
 const OwnerPanel: React.FC<OwnerPanelProps> = ({
@@ -54,12 +59,18 @@ const OwnerPanel: React.FC<OwnerPanelProps> = ({
   onApproveRentRequest,
   onRejectRentRequest,
   onAddRoom,
-  onDeleteRoom
+  onDeleteRoom,
+  notifications,
+  onMarkNotificationRead,
+  onClearNotifications,
+  leaveNotices,
+  onAcknowledgeLeaveNotice
 }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isPropertyModalOpen, setIsPropertyModalOpen] = useState(false);
   const [isTenantModalOpen, setIsTenantModalOpen] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   // Rent Info Modal State
   const [rentInfoModalOpen, setRentInfoModalOpen] = useState(false);
@@ -71,7 +82,7 @@ const OwnerPanel: React.FC<OwnerPanelProps> = ({
 
 
   // Form State
-  const [newProperty, setNewProperty] = useState({ name: '', address: '', city: '', rentAmount: '', type: PropertyType.FLAT, dueDay: 5 });
+  const [newProperty, setNewProperty] = useState({ name: '', address: '', city: '', rentAmount: '', type: PropertyType.FLAT, dueDay: 5, securityDeposit: '' });
   const [newTenant, setNewTenant] = useState({ name: '', phone: '' });
 
   // File input ref for agreement upload
@@ -89,8 +100,9 @@ const OwnerPanel: React.FC<OwnerPanelProps> = ({
     onAddProperty({
       ...newProperty,
       rentAmount: Number(newProperty.rentAmount),
+      securityDeposit: newProperty.securityDeposit ? Number(newProperty.securityDeposit) : undefined,
     });
-    setNewProperty({ name: '', address: '', city: '', rentAmount: '', type: PropertyType.FLAT, dueDay: 5 });
+    setNewProperty({ name: '', address: '', city: '', rentAmount: '', type: PropertyType.FLAT, dueDay: 5, securityDeposit: '' });
     setIsPropertyModalOpen(false);
   };
 
@@ -199,6 +211,38 @@ const OwnerPanel: React.FC<OwnerPanelProps> = ({
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
             </svg>
           </button>
+          {/* Notification Bell */}
+          <div className="relative">
+            <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 text-[#4B5EAA] relative">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+              </svg>
+              {notifications.filter(n => (n.userId === 'OWNER') && !n.read).length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                  {notifications.filter(n => (n.userId === 'OWNER') && !n.read).length}
+                </span>
+              )}
+            </button>
+            {showNotifications && (
+              <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-xl border border-[#EAEAEA] z-50 max-h-96 overflow-y-auto">
+                <div className="p-4 border-b border-[#EAEAEA] flex justify-between items-center">
+                  <h3 className="font-bold text-sm">🔔 Notifications</h3>
+                  <button onClick={() => { onClearNotifications(); setShowNotifications(false); }} className="text-xs text-[#BC4749] hover:underline">Clear All</button>
+                </div>
+                {notifications.filter(n => n.userId === 'OWNER').length === 0 ? (
+                  <p className="p-4 text-sm text-[#8E9491] text-center">No notifications</p>
+                ) : (
+                  notifications.filter(n => n.userId === 'OWNER').reverse().map(n => (
+                    <div key={n.id} onClick={() => { onMarkNotificationRead(n.id); }} className={`p-3 border-b border-[#F5F5F5] cursor-pointer hover:bg-[#F9F8F6] transition-colors ${!n.read ? 'bg-[#EEF2FF]' : ''}`}>
+                      <p className="font-bold text-sm">{n.title}</p>
+                      <p className="text-xs text-[#555] mt-0.5">{n.message}</p>
+                      <p className="text-[10px] text-[#8E9491] mt-1">{n.date}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {activeTab === 'dashboard' && (
@@ -347,6 +391,41 @@ const OwnerPanel: React.FC<OwnerPanelProps> = ({
                             <button onClick={() => onApproveRentRequest(req.id)} className="px-3 py-1.5 bg-[#2E7D32] text-white text-xs font-bold rounded-lg hover:bg-[#1B5E20] transition-colors">Approve</button>
                             <button onClick={() => onRejectRentRequest(req.id)} className="px-3 py-1.5 bg-white border border-[#EAEAEA] text-[#BC4749] text-xs font-bold rounded-lg hover:bg-red-50 transition-colors">Reject</button>
                           </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Leave Notices */}
+            {leaveNotices.filter(n => n.status === 'PENDING').length > 0 && (
+              <div className="bg-white rounded-2xl border-2 border-[#E57373] shadow-sm p-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-red-50 rounded-lg text-[#C62828]">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" /></svg>
+                  </div>
+                  <h3 className="font-bold text-lg text-[#C62828]">Leave Notices</h3>
+                  <span className="ml-auto bg-[#C62828] text-white text-xs font-bold px-2 py-1 rounded-full">{leaveNotices.filter(n => n.status === 'PENDING').length}</span>
+                </div>
+                <div className="space-y-3">
+                  {leaveNotices.filter(n => n.status === 'PENDING').map(notice => {
+                    const prop = properties.find(p => p.id === notice.propertyId);
+                    const room = notice.roomId && prop?.rooms ? prop.rooms.find(r => r.id === notice.roomId) : null;
+                    return (
+                      <div key={notice.id} className="p-4 rounded-xl bg-red-50 border border-[#E57373]">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-bold text-[#2D3436]">{notice.tenantName}</p>
+                            <p className="text-sm text-[#555] mt-1">
+                              Vacating: <span className="font-medium">{prop?.name || 'Unknown'}{room ? ` — Room ${room.number}` : ''}</span>
+                            </p>
+                            <p className="text-xs text-[#C62828] font-bold mt-1">Move-out: {notice.moveOutDate}</p>
+                            {notice.reason && <p className="text-xs text-[#8E9491] mt-1 italic">Reason: {notice.reason}</p>}
+                            <p className="text-[10px] text-[#8E9491] mt-1">Notice sent: {notice.date}</p>
+                          </div>
+                          <button onClick={() => onAcknowledgeLeaveNotice(notice.id)} className="px-3 py-1.5 bg-[#4B5EAA] text-white text-xs font-bold rounded-lg hover:bg-[#3D4D8C] transition-colors shrink-0">Acknowledge</button>
                         </div>
                       </div>
                     );
@@ -622,6 +701,10 @@ const OwnerPanel: React.FC<OwnerPanelProps> = ({
                   <option key={type} value={type}>{type}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[#2D3436] mb-1">Security Deposit (₹)</label>
+              <input type="number" value={newProperty.securityDeposit} onChange={e => setNewProperty({ ...newProperty, securityDeposit: e.target.value })} className="w-full p-3 rounded-xl border border-[#EAEAEA] bg-[#F9F8F6]" placeholder="e.g. 30000 (optional)" />
             </div>
             <div className="flex gap-3 mt-6">
               <Button type="button" variant="outline" onClick={() => setIsPropertyModalOpen(false)} fullWidth>{t.cancel}</Button>

@@ -37,37 +37,40 @@ export interface User {
 
 export interface Room {
   id: string;
-  number: string;        // "101", "102", "G-1"
-  floor?: string;        // "Ground", "1st", "2nd"
+  number: string;
+  floor?: string;
   rentAmount: number;
   isOccupied: boolean;
   tenantId?: string;
+  securityDeposit?: number;
 }
 
 export interface Property {
   id: string;
-  name: string;          // Building name: "Green Towers"
+  name: string;
   address: string;
   city: string;
   type: PropertyType;
-  rentAmount: number;     // Default rent (used if no rooms)
+  rentAmount: number;
   dueDay: number;
-  isOccupied: boolean;    // Legacy: true if ANY room occupied or single-unit occupied
-  tenantId?: string;      // Legacy: for single-unit properties
+  isOccupied: boolean;
+  tenantId?: string;
   images?: string[];
-  rooms?: Room[];         // Multiple rooms/quarters
+  rooms?: Room[];
+  securityDeposit?: number;       // Security deposit amount
+  depositPaid?: boolean;          // Whether deposit is paid (single-unit)
 }
 
 export interface RentRequest {
   id: string;
   propertyId: string;
-  roomId?: string;        // If requesting a specific room
+  roomId?: string;
   tenantId: string;
   tenantName: string;
   tenantPhone: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   date: string;
-  message?: string;       // Tenant's message to owner
+  message?: string;
 }
 
 export interface Payment {
@@ -78,9 +81,9 @@ export interface Payment {
   month: string;
   status: PaymentStatus;
   datePaid?: string;
-  type: 'RENT' | 'ELECTRICITY' | 'WATER' | 'MAINTENANCE';
+  type: 'RENT' | 'ELECTRICITY' | 'WATER' | 'MAINTENANCE' | 'SECURITY_DEPOSIT';
   reminderSent?: boolean;
-  roomId?: string;        // Which room the payment is for
+  roomId?: string;
 }
 
 export interface Complaint {
@@ -93,4 +96,26 @@ export interface Complaint {
   date: string;
   images?: string[];
   roomId?: string;
+}
+
+export interface AppNotification {
+  id: string;
+  userId: string;           // Who receives this notification
+  title: string;
+  message: string;
+  date: string;
+  read: boolean;
+  type: 'PAYMENT' | 'RENT_REQUEST' | 'LEAVE_NOTICE' | 'GENERAL';
+}
+
+export interface LeaveNotice {
+  id: string;
+  tenantId: string;
+  tenantName: string;
+  propertyId: string;
+  roomId?: string;
+  date: string;              // When notice was sent
+  moveOutDate: string;       // When tenant plans to leave
+  reason?: string;
+  status: 'PENDING' | 'ACKNOWLEDGED';
 }

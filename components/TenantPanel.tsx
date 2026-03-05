@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { User, Complaint, ComplaintStatus, Payment, PaymentStatus, Property, RentRequest } from '../types';
+import { User, Complaint, ComplaintStatus, Payment, PaymentStatus, Property, RentRequest, AppNotification, LeaveNotice } from '../types';
 import { Icons, COLORS } from '../constants';
 import Button from './Button';
 import Layout from './Layout';
@@ -19,6 +19,10 @@ interface TenantPanelProps {
   agreements: { id: string; name: string; data: string; uploadedAt: string; propertyId?: string }[];
   rentRequests: RentRequest[];
   onSendRentRequest: (propertyId: string, roomId?: string, message?: string) => void;
+  notifications: AppNotification[];
+  onMarkNotificationRead: (notifId: string) => void;
+  leaveNotices: LeaveNotice[];
+  onSendLeaveNotice: (moveOutDate: string, reason?: string) => void;
 }
 
 const TenantPanel: React.FC<TenantPanelProps> = ({
@@ -33,7 +37,11 @@ const TenantPanel: React.FC<TenantPanelProps> = ({
   onRentProperty,
   agreements,
   rentRequests,
-  onSendRentRequest
+  onSendRentRequest,
+  notifications,
+  onMarkNotificationRead,
+  leaveNotices,
+  onSendLeaveNotice
 }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
 
@@ -41,10 +49,14 @@ const TenantPanel: React.FC<TenantPanelProps> = ({
   const [isComplaintModalOpen, setIsComplaintModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
+  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   // Form/Action State
   const [newComplaint, setNewComplaint] = useState({ title: '', description: '', propertyId: '' });
   const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
+  const [leaveDate, setLeaveDate] = useState('');
+  const [leaveReason, setLeaveReason] = useState('');
 
   const t = TRANSLATIONS[lang];
 
@@ -164,6 +176,37 @@ const TenantPanel: React.FC<TenantPanelProps> = ({
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
             </svg>
           </button>
+          {/* Notification Bell */}
+          <div className="relative">
+            <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 text-[#4B5EAA] relative">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+              </svg>
+              {notifications.filter(n => n.userId === user.id && !n.read).length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                  {notifications.filter(n => n.userId === user.id && !n.read).length}
+                </span>
+              )}
+            </button>
+            {showNotifications && (
+              <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-xl border border-[#EAEAEA] z-50 max-h-96 overflow-y-auto">
+                <div className="p-4 border-b border-[#EAEAEA]">
+                  <h3 className="font-bold text-sm">🔔 Notifications</h3>
+                </div>
+                {notifications.filter(n => n.userId === user.id).length === 0 ? (
+                  <p className="p-4 text-sm text-[#8E9491] text-center">No notifications</p>
+                ) : (
+                  notifications.filter(n => n.userId === user.id).reverse().map(n => (
+                    <div key={n.id} onClick={() => onMarkNotificationRead(n.id)} className={`p-3 border-b border-[#F5F5F5] cursor-pointer hover:bg-[#F9F8F6] transition-colors ${!n.read ? 'bg-[#EEF2FF]' : ''}`}>
+                      <p className="font-bold text-sm">{n.title}</p>
+                      <p className="text-xs text-[#555] mt-0.5">{n.message}</p>
+                      <p className="text-[10px] text-[#8E9491] mt-1">{n.date}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {activeTab === 'dashboard' && (
@@ -287,8 +330,8 @@ const TenantPanel: React.FC<TenantPanelProps> = ({
                               }}
                               disabled={!!pendingReq}
                               className={`px-4 py-2 text-sm font-bold rounded-lg transition-transform ${pendingReq
-                                  ? 'bg-[#E3F2FD] text-[#1565C0] cursor-not-allowed'
-                                  : 'bg-[#4B5EAA] text-white hover:bg-[#3D4D8C] active:scale-95'
+                                ? 'bg-[#E3F2FD] text-[#1565C0] cursor-not-allowed'
+                                : 'bg-[#4B5EAA] text-white hover:bg-[#3D4D8C] active:scale-95'
                                 }`}
                             >
                               {pendingReq ? 'Pending...' : 'Request to Rent'}
@@ -318,8 +361,8 @@ const TenantPanel: React.FC<TenantPanelProps> = ({
                                       }}
                                       disabled={!!pendingRoomReq}
                                       className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${pendingRoomReq
-                                          ? 'bg-[#E3F2FD] text-[#1565C0] cursor-not-allowed border border-[#BBDEFB]'
-                                          : 'bg-white border border-[#4B5EAA] text-[#4B5EAA] hover:bg-[#F3F5FA]'
+                                        ? 'bg-[#E3F2FD] text-[#1565C0] cursor-not-allowed border border-[#BBDEFB]'
+                                        : 'bg-white border border-[#4B5EAA] text-[#4B5EAA] hover:bg-[#F3F5FA]'
                                         }`}
                                     >
                                       {pendingRoomReq ? 'Pending...' : 'Request'}
@@ -468,6 +511,40 @@ const TenantPanel: React.FC<TenantPanelProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Leave Notice */}
+            <div className="bg-white rounded-2xl border border-[#EAEAEA] overflow-hidden">
+              <div className="p-4 border-b border-[#EAEAEA] bg-[#F9F8F6] font-bold text-sm text-[#8E9491] uppercase tracking-wider">📤 Leave Notice</div>
+              <div className="p-4">
+                {leaveNotices.filter(n => n.tenantId === user.id).length > 0 ? (
+                  <div className="space-y-3">
+                    {leaveNotices.filter(n => n.tenantId === user.id).map(n => (
+                      <div key={n.id} className={`p-3 rounded-xl border ${n.status === 'ACKNOWLEDGED' ? 'bg-[#E8F5E9] border-[#C8E6C9]' : 'bg-[#FFF8E1] border-[#FFECB3]'}`}>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="text-sm font-bold">Move-out: {n.moveOutDate}</p>
+                            {n.reason && <p className="text-xs text-[#8E9491] mt-1">Reason: {n.reason}</p>}
+                            <p className="text-[10px] text-[#8E9491] mt-1">Sent: {n.date}</p>
+                          </div>
+                          <span className={`text-xs font-bold px-2 py-1 rounded-full ${n.status === 'ACKNOWLEDGED' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                            {n.status === 'ACKNOWLEDGED' ? '✅ Acknowledged' : '⏳ Pending'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-[#8E9491] mb-3">Planning to move out? Send an advance leave notice to the owner.</p>
+                )}
+                <button
+                  onClick={() => { if (myProperty) setIsLeaveModalOpen(true); else alert('No property linked to send leave notice.'); }}
+                  className="mt-3 w-full py-3 bg-[#BC4749] text-white font-bold rounded-xl hover:bg-[#A43B3D] transition-colors flex items-center justify-center gap-2"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" /></svg>
+                  Send Leave Notice
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -539,6 +616,34 @@ const TenantPanel: React.FC<TenantPanelProps> = ({
           </div>
         </Modal>
       </div>
+
+      {/* Leave Notice Modal */}
+      <Modal isOpen={isLeaveModalOpen} onClose={() => setIsLeaveModalOpen(false)} title="Send Leave Notice">
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          if (!leaveDate) { alert('Please select a move-out date.'); return; }
+          onSendLeaveNotice(leaveDate, leaveReason || undefined);
+          setIsLeaveModalOpen(false);
+          setLeaveDate('');
+          setLeaveReason('');
+        }} className="space-y-4">
+          <div className="p-3 bg-[#FFF8E1] border border-[#FFECB3] rounded-xl text-sm text-[#F57F17]">
+            ⚠️ Please send your leave notice at least 30 days in advance.
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[#2D3436] mb-1">Planned Move-out Date *</label>
+            <input type="date" required value={leaveDate} onChange={(e) => setLeaveDate(e.target.value)} min={new Date(Date.now() + 86400000).toISOString().split('T')[0]} className="w-full px-4 py-3 rounded-xl border border-[#EAEAEA] focus:border-[#4B5EAA] focus:ring-2 focus:ring-[#4B5EAA]/20 outline-none" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[#2D3436] mb-1">Reason (Optional)</label>
+            <textarea rows={3} value={leaveReason} onChange={(e) => setLeaveReason(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-[#EAEAEA] focus:border-[#4B5EAA] focus:ring-2 focus:ring-[#4B5EAA]/20 outline-none" placeholder="e.g., Relocating for job, family reasons..." />
+          </div>
+          <div className="flex gap-3">
+            <Button type="button" variant="outline" onClick={() => setIsLeaveModalOpen(false)} fullWidth>Cancel</Button>
+            <Button type="submit" fullWidth className="!bg-[#BC4749] hover:!bg-[#A43B3D]">Send Notice</Button>
+          </div>
+        </form>
+      </Modal>
     </Layout>
   );
 };

@@ -1,0 +1,43 @@
+class A
+{
+    public int a = 10;
+    protected int b = 20;
+    int c = 30;
+    private int d = 40;
+
+    public void display()
+    {
+        System.out.println("Public: " + a);
+        System.out.println("Protected: " + b);
+        System.out.println("Default: " + c);
+        System.out.println("Private: " + d);
+    }
+}
+
+class B extends A
+{
+    void show()
+    {
+        System.out.println("Public: " + a);
+        System.out.println("Protected: " + b);
+        System.out.println("Default: " + c);
+
+        // Private member cannot be accessed directly.
+    }
+}
+
+public class AccessDemo
+{
+    public static void main(String args[])
+    {
+        A obj = new A();
+
+        System.out.println("Accessing through Class A:");
+        obj.display();
+
+        System.out.println("\nAccessing through Class B:");
+
+        B obj1 = new B();
+        obj1.show();
+    }
+}
